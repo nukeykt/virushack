@@ -64,6 +64,7 @@ def convert_time(time):
     if time in unique_dates:
         return unique_dates[time]
     unique_dates[time] = pd.to_datetime(time, format='%Y %b %d %X')
+    return unique_dates[time]
 
 
 def parse_line(line):
