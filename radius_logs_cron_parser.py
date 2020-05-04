@@ -1,10 +1,16 @@
-from loguru import logger
-from pathlib import Path
-from parse_radius_logs import parse_line, is_useful, columns, df_aggregation, convert_time
 import gzip
-import pandas as pd
+import os
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
+
 import joblib
+import pandas as pd
+import requests
+from apscheduler.scheduler import Scheduler
+from loguru import logger
+
+from parse_radius_logs import parse_line, is_useful, columns, df_aggregation, convert_time
 
 path = Path('radius.log.1.gz')
 UPDATE_INTERVAL_MIN = 5
@@ -22,7 +28,7 @@ def get_top_users_by_stop(df):
     df_new = df_group.first()
     df_new['count'] = df_group.size()
     df_new = df_new.reset_index()
-    df_new = df_new[df_new['count'] > 3]
+    df_new = df_new[df_new['count'] > 2]
     return df_new[['login', 'count']].sort_values(by='count', ascending=False).reset_index(drop=True)
 
 
@@ -79,6 +85,15 @@ def get_time(line):
     return time
 
 
+def send_request_to_update():
+    logger.info('Sending request')
+    r = requests.get('http://127.0.0.1:80/update')
+    if r.status_code == 200:
+        logger.info('Successfully sent!')
+    else:
+        logger.info('Error sending(')
+
+
 def parse():
     until_time = datetime.now()
     from_time = until_time - timedelta(minutes=UPDATE_INTERVAL_MIN)
@@ -103,12 +118,19 @@ def parse():
     joblib.dump(stats, 'stats')
     joblib.dump(user_stats, 'user_stats')
     logger.info('Works end!')
-    # tell api to update data
-    # requests.get(80.123.123.123/updatereport)
+    send_request_to_update()
 
 
 def main():
+    fpid = os.fork()
+    if fpid != 0:
+        # Running as daemon now. PID is fpid
+        sys.exit(0)
     parse()
+    sched = Scheduler()
+    sched.add_cron_job(parse, minute='*/5')
+    sched.start()
+    input('')
 
 
 if __name__ == '__main__':
