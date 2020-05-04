@@ -62,7 +62,7 @@ class SNMPPoll:
         self.pMod.apiPDU.setDefaults(self.reqPDU)
         self.pMod.apiPDU.setVarBinds(
             self.reqPDU, ((self.time_id, self.pMod.Null('')),
-                     #(temp_id, pMod.Null('')),
+                     (self.temp_id, self.pMod.Null('')),
                      (self.cpuload_id, self.pMod.Null('')),
                      (self.fanspeed_id, self.pMod.Null('')),
                      (self.volt1_id, self.pMod.Null('')),
