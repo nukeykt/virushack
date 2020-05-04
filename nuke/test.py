@@ -6,12 +6,26 @@ from time import time, sleep
 
 pMod = api.protoModules[api.protoVersion1]
 
+time_id = '1.3.6.1.2.1.1.3.0'
+temp_id = '1.3.6.1.4.1.8886.1.1.4.2.1.0'
+cpuload_id = '1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1' # raisecomCPUUtilization1sec
+volt_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3'
+fanspeed_id = '1.3.6.1.4.1.8886.1.1.5.2.2.1.2'
+oid_list = [[time_id, "systime"],
+            [temp_id, "temperature"],
+            [cpuload_id, "CpuUtilization1sec"],
+            [volt_id, "VoltValue"],
+]
+
 reqPDU = pMod.GetRequestPDU()
 pMod.apiPDU.setDefaults(reqPDU)
 pMod.apiPDU.setVarBinds(
-    reqPDU, (('1.3.6.1.2.1.1.1.0', pMod.Null('')),
-             ('1.3.6.1.2.1.1.3.0', pMod.Null('')),
-             ('1.3.6.1.4.1.8886.1.1.4.2.1.0', pMod.Null(''))))
+    reqPDU, ((time_id, pMod.Null('')),
+             (temp_id, pMod.Null('')),
+             (cpuload_id, pMod.Null('')),
+             #(fanspeed_id, pMod.Null('')),
+             )
+)
 
 reqMsg = pMod.Message()
 pMod.apiMessage.setDefaults(reqMsg)
@@ -34,7 +48,9 @@ def cbRecvFun(transportDispatcher, transportDomain, tranportAddress, wholeMsg, r
                 print(errorStatus.prettyPrint())
             else:
                 for oid, val in pMod.apiPDU.getVarBinds(rspPDU):
-                    print('%s = %s' % (oid.prettyPrint(), val.prettyPrint()))
+                    for x in oid_list:
+                        if x[0] == oid.prettyPrint():
+                            print('%s = %s' % (x[1], val.prettyPrint()))
             transportDispatcher.jobFinished(1)
     return wholeMsg
 
