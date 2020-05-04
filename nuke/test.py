@@ -9,30 +9,43 @@ pMod = api.protoModules[api.protoVersion1]
 time_id = '1.3.6.1.2.1.1.3.0'
 temp_id = '1.3.6.1.4.1.8886.1.1.4.2.1.0'
 cpuload_id = '1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1' # raisecomCPUUtilization1sec
-volt_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3'
-fanspeed_id = '1.3.6.1.4.1.8886.1.1.5.2.2.1.2'
+volt1_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.1'
+volt2_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.2'
+volt3_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.3'
+volt4_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.4'
+fanspeed_id = '1.3.6.1.4.1.8886.1.1.5.2.2.1.2.1'
+#cpuload_id = "1.3.6.1.4.2011.6.3.4.1.2" # huawei
+#cpuload_id = "1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1"
 oid_list = [[time_id, "systime"],
             [temp_id, "temperature"],
             [cpuload_id, "CpuUtilization1sec"],
-            [volt_id, "VoltValue"],
+            [fanspeed_id, "FanSpeed"],
+            [volt1_id, "Volt1"],
+            [volt2_id, "Volt2"],
+            [volt3_id, "Volt3"],
+            [volt4_id, "Volt4"],
 ]
 
 reqPDU = pMod.GetRequestPDU()
 pMod.apiPDU.setDefaults(reqPDU)
 pMod.apiPDU.setVarBinds(
     reqPDU, ((time_id, pMod.Null('')),
-             (temp_id, pMod.Null('')),
+             #(temp_id, pMod.Null('')),
              (cpuload_id, pMod.Null('')),
-             #(fanspeed_id, pMod.Null('')),
+             (fanspeed_id, pMod.Null('')),
+             (volt1_id, pMod.Null('')),
+             (volt2_id, pMod.Null('')),
+             (volt3_id, pMod.Null('')),
+             (volt4_id, pMod.Null('')),
              )
 )
 
 reqMsg = pMod.Message()
 pMod.apiMessage.setDefaults(reqMsg)
-pMod.apiMessage.setCommunity(reqMsg, 'public')
+pMod.apiMessage.setCommunity(reqMsg, 'vhack2020')
 pMod.apiMessage.setPDU(reqMsg, reqPDU)
 
-startedAt = time()
+startedAt = 0
 
 def cbTimerFun(timeNow):
     if timeNow - startedAt > 3:
@@ -55,6 +68,9 @@ def cbRecvFun(transportDispatcher, transportDomain, tranportAddress, wholeMsg, r
     return wholeMsg
 
 for i in range(5000):
+
+    startedAt = time()
+
     transportDispatcher = AsyncoreDispatcher()
 
     transportDispatcher.registerRecvCbFun(cbRecvFun)
