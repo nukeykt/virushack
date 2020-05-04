@@ -3,7 +3,7 @@ import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-
+import signal
 import joblib
 import pandas as pd
 import requests
@@ -130,7 +130,7 @@ def main():
     sched = Scheduler()
     sched.add_cron_job(parse, minute='*/5')
     sched.start()
-    input('')
+    signal.pause()
 
 
 if __name__ == '__main__':
