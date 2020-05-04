@@ -2,90 +2,118 @@ from pysnmp.carrier.asyncore.dispatch import AsyncoreDispatcher
 from pysnmp.carrier.asyncore.dgram import udp, udp6, unix
 from pyasn1.codec.ber import encoder, decoder
 from pysnmp.proto import api
-from time import time, sleep
+from time import time, sleep, strftime, gmtime
+from datetime import datetime
 
-pMod = api.protoModules[api.protoVersion1]
-
-time_id = '1.3.6.1.2.1.1.3.0'
-temp_id = '1.3.6.1.4.1.8886.1.1.4.2.1.0'
-cpuload_id = '1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1' # raisecomCPUUtilization1sec
-volt1_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.1'
-volt2_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.2'
-volt3_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.3'
-volt4_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.4'
-fanspeed_id = '1.3.6.1.4.1.8886.1.1.5.2.2.1.2.1'
-#cpuload_id = "1.3.6.1.4.2011.6.3.4.1.2" # huawei
-#cpuload_id = "1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1"
-oid_list = [[time_id, "systime"],
-            [temp_id, "temperature"],
-            [cpuload_id, "CpuUtilization1sec"],
-            [fanspeed_id, "FanSpeed"],
-            [volt1_id, "Volt1"],
-            [volt2_id, "Volt2"],
-            [volt3_id, "Volt3"],
-            [volt4_id, "Volt4"],
-]
-
-reqPDU = pMod.GetRequestPDU()
-pMod.apiPDU.setDefaults(reqPDU)
-pMod.apiPDU.setVarBinds(
-    reqPDU, ((time_id, pMod.Null('')),
-             #(temp_id, pMod.Null('')),
-             (cpuload_id, pMod.Null('')),
-             (fanspeed_id, pMod.Null('')),
-             (volt1_id, pMod.Null('')),
-             (volt2_id, pMod.Null('')),
-             (volt3_id, pMod.Null('')),
-             (volt4_id, pMod.Null('')),
-             )
-)
-
-reqMsg = pMod.Message()
-pMod.apiMessage.setDefaults(reqMsg)
-pMod.apiMessage.setCommunity(reqMsg, 'vhack2020')
-pMod.apiMessage.setPDU(reqMsg, reqPDU)
-
-startedAt = 0
+snmp_obj = None
+snmp_ans = []
 
 def cbTimerFun(timeNow):
-    if timeNow - startedAt > 3:
+    if timeNow - snmp_obj.startedAt > 3:
         raise Exception("Request timed out")
 
-def cbRecvFun(transportDispatcher, transportDomain, tranportAddress, wholeMsg, reqPDU=reqPDU):
+def cbRecvFun(transportDispatcher, transportDomain, tranportAddress, wholeMsg, reqPDU=None):
+    global snmp_obj
+    if reqPDU is None:
+        reqPDU = snmp_obj.reqPDU
     while wholeMsg:
-        rspMsg, wholeMsg = decoder.decode(wholeMsg, asn1Spec=pMod.Message())
-        rspPDU = pMod.apiMessage.getPDU(rspMsg)
-        if pMod.apiPDU.getRequestID(reqPDU) == pMod.apiPDU.getRequestID(rspPDU):
-            errorStatus = pMod.apiPDU.getErrorStatus(rspPDU)
+        rspMsg, wholeMsg = decoder.decode(wholeMsg, asn1Spec=snmp_obj.pMod.Message())
+        rspPDU = snmp_obj.pMod.apiMessage.getPDU(rspMsg)
+        if snmp_obj.pMod.apiPDU.getRequestID(reqPDU) == snmp_obj.pMod.apiPDU.getRequestID(rspPDU):
+            errorStatus = snmp_obj.pMod.apiPDU.getErrorStatus(rspPDU)
             if errorStatus:
-                print(errorStatus.prettyPrint())
+                print("SNMP: {}".format(errorStatus.prettyPrint()))
             else:
-                for oid, val in pMod.apiPDU.getVarBinds(rspPDU):
-                    for x in oid_list:
+                global snmp_ans
+                snmp_ans = []
+                for oid, val in snmp_obj.pMod.apiPDU.getVarBinds(rspPDU):
+                    for x in snmp_obj.oid_list:
                         if x[0] == oid.prettyPrint():
-                            print('%s = %s' % (x[1], val.prettyPrint()))
+                            snmp_ans.append([x[1], val.prettyPrint()])
+                            #print('%s = %s' % (x[1], val.prettyPrint()))
             transportDispatcher.jobFinished(1)
     return wholeMsg
 
-for i in range(5000):
+class SNMPPoll:
+    def __init__(self):
+        self.pMod = api.protoModules[api.protoVersion1]
 
-    startedAt = time()
+        self.time_id = '1.3.6.1.2.1.1.3.0'
+        self.temp_id = '1.3.6.1.4.1.8886.1.1.4.2.1.0'
+        self.cpuload_id = '1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1' # raisecomCPUUtilization1sec
+        self.volt1_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.1'
+        self.volt2_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.2'
+        self.volt3_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.3'
+        self.volt4_id = '1.3.6.1.4.1.8886.1.1.4.3.1.1.3.4'
+        self.fanspeed_id = '1.3.6.1.4.1.8886.1.1.5.2.2.1.2.1'
+        #cpuload_id = "1.3.6.1.4.2011.6.3.4.1.2" # huawei
+        #cpuload_id = "1.3.6.1.4.1.8886.1.1.1.5.1.1.1.3.1"
+        self.oid_list = [[self.time_id, "systime"],
+                    [self.temp_id, "temperature"],
+                    [self.cpuload_id, "CpuUtilization1sec"],
+                    [self.fanspeed_id, "FanSpeed"],
+                    [self.volt1_id, "Volt1"],
+                    [self.volt2_id, "Volt2"],
+                    [self.volt3_id, "Volt3"],
+                    [self.volt4_id, "Volt4"],
+        ]
 
-    transportDispatcher = AsyncoreDispatcher()
+        self.reqPDU = self.pMod.GetRequestPDU()
+        self.pMod.apiPDU.setDefaults(self.reqPDU)
+        self.pMod.apiPDU.setVarBinds(
+            self.reqPDU, ((self.time_id, self.pMod.Null('')),
+                     #(temp_id, pMod.Null('')),
+                     (self.cpuload_id, self.pMod.Null('')),
+                     (self.fanspeed_id, self.pMod.Null('')),
+                     (self.volt1_id, self.pMod.Null('')),
+                     (self.volt2_id, self.pMod.Null('')),
+                     (self.volt3_id, self.pMod.Null('')),
+                     (self.volt4_id, self.pMod.Null('')),
+                     )
+        )
 
-    transportDispatcher.registerRecvCbFun(cbRecvFun)
-    transportDispatcher.registerTimerCbFun(cbTimerFun)
+        self.reqMsg = self.pMod.Message()
+        self.pMod.apiMessage.setDefaults(self.reqMsg)
+        self.pMod.apiMessage.setCommunity(self.reqMsg, 'vhack2020')
+        self.pMod.apiMessage.setPDU(self.reqMsg, self.reqPDU)
 
-    transportDispatcher.registerTransport(
-        udp.domainName, udp.UdpSocketTransport().openClientMode()
-    )
+        self.startedAt = 0
 
-    transportDispatcher.sendMessage(
-        encoder.encode(reqMsg), udp.domainName, ('localhost', 161)
-    )
+    def Poll(self):
+        global snmp_obj, snmp_ans
+        snmp_obj = self
+        self.startedAt = time()
 
-    transportDispatcher.jobStarted(1)
+        transportDispatcher = AsyncoreDispatcher()
 
-    transportDispatcher.runDispatcher()
+        transportDispatcher.registerRecvCbFun(cbRecvFun)
+        transportDispatcher.registerTimerCbFun(cbTimerFun)
 
-    transportDispatcher.closeDispatcher()
+        transportDispatcher.registerTransport(
+            udp.domainName, udp.UdpSocketTransport().openClientMode()
+        )
+
+        transportDispatcher.sendMessage(
+            encoder.encode(self.reqMsg), udp.domainName, ('localhost', 161)
+        )
+
+        transportDispatcher.jobStarted(1)
+
+        transportDispatcher.runDispatcher()
+
+        transportDispatcher.closeDispatcher()
+
+        return snmp_ans
+
+
+test = SNMPPoll()
+
+with open('poll.txt', 'w') as f:
+    while True:
+        ans = test.Poll()
+        my_time =  datetime.now().strftime("%b %d %Y %H %M %S")
+        ans.append(["localtime", my_time])
+        print(ans)
+        print(ans, file=f)
+        sleep(3)
+        f.flush()
