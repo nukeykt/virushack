@@ -161,8 +161,6 @@ def get_user_info(df):
             user_info[login]['delay_mean'] = float(user_info[login]['delay_sum']) / user_info[login]['delay_count']
             user_info[login]['stop_count'] += 1
             user_info[login]['active'] = False
-    for login in user_info:
-        del user_info[login]['delay_sum'], user_info[login]['delay_count']
     return user_info
 
 
