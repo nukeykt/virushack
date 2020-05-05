@@ -50,11 +50,10 @@ def main():
         # Running as daemon now. PID is fpid
         sys.exit(0)
     sched = Scheduler()
-    sched.add_cron_job(report, minute='*/5')
+    sched.add_cron_job(report, minute='*/10')
     sched.start()
     signal.pause()
 
 
 if __name__ == '__main__':
-  print('asdf')
-  report()
+  main()
