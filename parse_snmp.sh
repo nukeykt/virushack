@@ -26,7 +26,7 @@ N=${#DEVICES[@]}
 echo $N
 
 fetch() {
-  sshpass -p Che5iasu@e ssh -o StrictHostKeyChecking=no -L $TCP_PORT:localhost:$TCP_PORT vhack@vhack.ulrt.net "snmpwalk -c vhack2020 -v 2c $1 $2"
+  sshpass -p Che5iasu@e ssh -L $TCP_PORT:localhost:$TCP_PORT -o StrictHostKeyChecking=no vhack@vhack.ulrt.net "snmpwalk -c vhack2020 -v 2c $1 $2"
 }
 
 for (( i = 0; i < N; i++ ))

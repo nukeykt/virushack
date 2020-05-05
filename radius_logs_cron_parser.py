@@ -221,27 +221,24 @@ def parse_snmp():
             prev = json.load(f)
     except:
         logger.info('no prev snmp log file')
-    try:
-        items = []
-        res = run('./parse_snmp.sh', stdout=PIPE)
-        out = res.stdout.decode('utf-8')
-        for line in out.split('\n')[1:-1]:
-            a = line.split()
-            items.append({
-                "device_name": a[0],
-                "ip": a[1],
-                "temperature": a[2],
-                "cpu": a[3],
-            })
-        obj = {
-            "timestamp": datetime.now().timestamp(),
-            "items": items,
-        }
-        prev.append(obj)
-        with open(file_name, 'w+') as f:
-            json.dump(prev, f)
-    except:
-        logger.info('no snmp access')
+    items = []
+    res = run('./parse_snmp.sh', stdout=PIPE)
+    out = res.stdout.decode('utf-8')
+    for line in out.split('\n')[1:-1]:
+        a = line.split()
+        items.append({
+            "device_name": a[0],
+            "ip": a[1],
+            "temperature": a[2],
+            "cpu": a[3],
+        })
+    obj = {
+        "timestamp": datetime.now().timestamp(),
+        "items": items,
+    }
+    prev.append(obj)
+    with open(file_name, 'w+') as f:
+        json.dump(prev, f)
     logger.info('Finish snmp!')
 
 
