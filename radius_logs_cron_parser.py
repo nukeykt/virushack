@@ -160,6 +160,8 @@ def get_snmp_report():
         dd['max_cpu_load'] = int(np.max(dd['cpus']))
         dd['min_cpu_load'] = int(np.min(dd['cpus']))
         dd['mean_cpu'] = int(np.mean(dd['cpus']))
+        dd['current_temperature'] = int(dd['temperatures'][-1])
+        dd['current_cpu'] = int(dd['cpus'][-1])
         del dd['temperatures'], dd['cpus']
     return d
 

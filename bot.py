@@ -26,7 +26,7 @@ def report():
   res += '\n\n<b>Маршрутизаторы с частой переавторизацией:</b>\n'
   for user in top_stop_switches:
     res += user['switch'] + ', '
-  
+  snmp = requests.get('http://84.201.149.40/snmp_stat').json()
   requests.get('https://api.telegram.org/bot1109194190:AAEBfa3H6Rrl9S8qKTC2JA8VTVrz9j4-P74/sendMessage?chat_id=@vhack_report_channel&text=' + res, proxies=proxies)
 
 
@@ -42,4 +42,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+  print('asdf')
+  report()
