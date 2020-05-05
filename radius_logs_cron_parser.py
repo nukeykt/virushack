@@ -9,6 +9,8 @@ import pandas as pd
 import requests
 from apscheduler.scheduler import Scheduler
 from loguru import logger
+import json
+from subprocess import run, PIPE
 
 from parse_radius_logs import parse_line, is_useful, columns, df_aggregation, convert_time
 
@@ -120,6 +122,33 @@ def parse():
     logger.info('Works end!')
     send_request_to_update()
 
+def parse_snmp():
+    file_name = 'snmp_log.json'
+    prev = []
+    try:
+      with open(file_name, 'r') as f:
+        prev = json.load(f)
+    except:
+      print('no prev snmp log file')
+    items = []
+    res = run('./parse_snmp.sh', stdout=PIPE)
+    out = res.stdout.decode('utf-8')
+    for line in out.split('\n')[1:-1]:
+      a = line.split()
+      items.append({
+        "device_name": a[0],
+        "ip": a[1],
+        "temperature": a[2],
+        "cpu": a[3],
+      })
+    obj = {
+      "timestamp": datetime.now().timestamp(),
+      "items": items,
+    }
+    prev.append(obj)
+    with open(file_name, 'w+') as f:
+      json.dump(prev, f)
+
 
 def main():
     fpid = os.fork()
@@ -127,8 +156,10 @@ def main():
         # Running as daemon now. PID is fpid
         sys.exit(0)
     parse()
+    parse_snmp()
     sched = Scheduler()
     sched.add_cron_job(parse, minute='*/5')
+    sched.add_cron_job(parse_snmp, minute='*/2')
     sched.start()
     signal.pause()
 

@@ -2,3 +2,5 @@
 /virushack_rtk_it.egg-info/
 /data/
 /processed_data/
+__pycache__/
+snmp_log.json

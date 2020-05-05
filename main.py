@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import joblib
 from fastapi import FastAPI
+import json
 
 path_top_stop_switches = Path('top_stop_switches')
 path_top_stop_users = Path('top_stop_users')
@@ -66,3 +67,38 @@ def get_user_stats():
 @app.get("/stats")
 def get_stats():
     return stats
+
+
+@app.get("/snmp_raw")
+def get_snmp_raw():
+    file_name = 'snmp_log.json'
+    with open(file_name, 'r') as f:
+        obj = json.load(f)
+        return obj
+
+@app.get('/snmp_stat')
+def get_snmp_stat():
+    file_name = 'snmp_log.json'
+    with open(file_name, 'r') as f:
+        objs = json.load(f)
+        d = {}
+        for item in objs[0]['items']:
+          d[item['device_name']] = {
+            'temperatures': [],
+            'cpus': []
+          }
+        for obj in objs:
+          for item in obj['items']:
+            d[item['device_name']]['temperatures'].append(item['temperature'])
+            d[item['device_name']]['cpus'].append(item['cpu'])
+            d[item['device_name']]['device_name'] = item['device_name']
+            d[item['device_name']]['ip'] = item['ip']
+        for dd_key in d:
+          dd = d[dd_key]
+          dd['average_temperature'] = sum(map(int, dd['temperatures'])) / len(dd['temperatures'])
+          dd['average_cpu'] = sum(map(int, dd['cpus'])) / len(dd['cpus'])
+          dd['max_temperature'] = max(map(int, dd['temperatures']))
+          dd['min_temperature'] = min(map(int, dd['temperatures']))
+          dd['max_cpu'] = max(map(int, dd['cpus']))
+          dd['min_cpu'] = min(map(int, dd['cpus']))
+        return d
