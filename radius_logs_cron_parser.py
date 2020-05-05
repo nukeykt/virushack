@@ -22,6 +22,7 @@ UPDATE_INTERVAL_MIN = 5
 
 def login_preprocess(df):
     df_pr = df.copy()
+    df_pr = df_pr[df_pr['correct_login']]
     df_pr[df_pr['session_id'].isna()]['session_id'] = ''
     df_pr[df_pr['login'].isna()]['login'] = ''
     df_pr[df_pr['switch'].isna()]['switch'] = ''
@@ -29,7 +30,8 @@ def login_preprocess(df):
     df_pr[df_pr['client_mac'].isna()]['client_mac'] = ''
     df_pr[df_pr['traffic_in_sum'].isna()]['traffic_in_sum'] = 0
     df_pr[df_pr['traffic_out_sum'].isna()]['traffic_out_sum'] = 0
-    df_pr = df_pr[df_pr['correct_login']]
+    df_pr[df_pr['delay'].isna()] = 0.0
+    df_pr['delay'] = df_pr['delay'].astype(float)
     return df_pr
 
 
@@ -52,10 +54,9 @@ def get_top_switch_by_stop(df):
 
 
 def get_no_traffic_users_by_stop(df):
-    df_group = df[df['type'] == 'Stop'].groupby('login')
-    df_new = df_group.first()
+    df_new = df[(df['type'] == 'Stop') & ((df['traffic_in_sum'] < 1) | (df['traffic_out_sum'] < 1))]
+    df_new = df_new.groupby('login').first()
     df_new = df_new.reset_index()
-    df_new = df_new[(df_new['traffic_in_sum'] == 0) | (df_new['traffic_out_sum'] == 0)]
     return df_new[['login']]
 
 
@@ -95,6 +96,9 @@ def get_user_info(df):
     for login in user_info:
         if user_info[login]['session_end'] is not None:
             to_delete.append(login)
+        user_info[login]['stop_count'] = 0
+        user_info[login]['delay_max'] = 0
+        user_info[login]['delay_min'] = 100
     for login in to_delete:
         del user_info[login]
     for line in df.iterrows():
@@ -113,15 +117,49 @@ def get_user_info(df):
                 'session_sec': (datetime.now() - row['time']).total_seconds(),
                 'traffic_in': row['traffic_in_sum'],
                 'traffic_out': row['traffic_out_sum'],
-                'active': True
+                'active': True,
+                'stop_count': 0,
+                'delay_max': row['delay'],
+                'delay_min': row['delay'],
+                'delay_sum': row['delay'],
+                'delay_count': 1,
+                'delay_mean': row['delay']
             }
+            continue
+        if login in user_info and not user_info[login]['active'] and (row['type'] == 'Alive' or row['type'] == 'Start'):
+            user_info[login]['session_start'] = row['time']
+            user_info[login]['session_end'] = None
+            user_info[login]['session_id'] = row['session_id']
+            user_info[login]['session_sec'] = (datetime.now() - row['time']).total_seconds()
+            user_info[login]['active'] = True
+            user_info[login]['traffic_in'] += row['traffic_in_sum']
+            user_info[login]['traffic_out'] += row['traffic_out_sum']
+            user_info[login]['delay_max'] = max(user_info[login]['delay_max'], row['delay'])
+            user_info[login]['delay_min'] = min(user_info[login]['delay_min'], row['delay'])
+            user_info[login]['delay_sum'] += row['delay']
+            user_info[login]['delay_count'] += 1
+            user_info[login]['delay_mean'] = float(user_info[login]['delay_sum']) / user_info[login]['delay_count']
+            continue
         if row['type'] == 'Alive':
             user_info[login]['traffic_in'] += row['traffic_in_sum']
             user_info[login]['traffic_out'] += row['traffic_out_sum']
+            user_info[login]['delay_max'] = max(user_info[login]['delay_max'], row['delay'])
+            user_info[login]['delay_min'] = min(user_info[login]['delay_min'], row['delay'])
+            user_info[login]['delay_sum'] += row['delay']
+            user_info[login]['delay_count'] += 1
+            user_info[login]['delay_mean'] = float(user_info[login]['delay_sum']) / user_info[login]['delay_count']
         if row['type'] == 'Stop' and login in user_info:
             user_info[login]['session_end'] = row['time']
             user_info[login]['session_sec'] = (
                     user_info[login]['session_end'] - user_info[login]['session_start']).total_seconds()
+            user_info[login]['traffic_in'] += row['traffic_in_sum']
+            user_info[login]['traffic_out'] += row['traffic_out_sum']
+            user_info[login]['delay_max'] = max(user_info[login]['delay_max'], row['delay'])
+            user_info[login]['delay_min'] = min(user_info[login]['delay_min'], row['delay'])
+            user_info[login]['delay_sum'] += row['delay']
+            user_info[login]['delay_count'] += 1
+            user_info[login]['delay_mean'] = float(user_info[login]['delay_sum']) / user_info[login]['delay_count']
+            user_info[login]['stop_count'] += 1
             user_info[login]['active'] = False
     return user_info
 
@@ -166,6 +204,19 @@ def get_snmp_report():
     return d
 
 
+def get_top_delay(df):
+    df_delay = df[df['delay'] > 0.7]
+    df_group = df_delay.groupby('login')
+    df_delay = df_group.first()
+    df_delay['count'] = df_group.size()
+    df_delay['max_delay'] = df_group['delay'].max()
+    df_delay['min_delay'] = df_group['delay'].min()
+    df_delay['mean_delay'] = df_group['delay'].mean()
+    df_delay['median_delay'] = df_group['delay'].median()
+    df_delay = df_delay.reset_index()
+    return df_delay[['login', 'count', 'max_delay', 'min_delay', 'mean_delay', 'median_delay']]
+
+
 def get_time(line):
     tokens = line.split()
     time = '2020 ' + tokens[0] + ' ' + tokens[1] + ' ' + tokens[2]
@@ -203,6 +254,7 @@ def parse():
     user_stats = get_user_count_statistics(users_df)
     user_info = get_user_info(users_df)
     snmp_info = get_snmp_report()
+    top_delay_users = get_top_delay(users_df)
     joblib.dump(top_stop_users, 'top_stop_users')
     joblib.dump(top_stop_switches, 'top_stop_switches')
     joblib.dump(no_traffic_users, 'no_traffic_users')
@@ -210,6 +262,7 @@ def parse():
     joblib.dump(user_stats, 'user_stats')
     joblib.dump(user_info, 'user_info')
     joblib.dump(snmp_info, 'snmp_info')
+    joblib.dump(top_delay_users, 'top_delay_users')
     logger.info('Works end!')
     send_request_to_update()
 
