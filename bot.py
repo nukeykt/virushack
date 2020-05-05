@@ -13,17 +13,17 @@ proxies = {
 
 def report():
   no_traffic_users = requests.get('http://84.201.149.40/no_traffic_users').json()
-  res = 'Абоненты с нулевым трафиком:\n'
+  res = '<b>Абоненты с нулевым трафиком:</b>\n'
   for user in no_traffic_users:
     res += user['login'] + ', '
   
   top_stop_users = requests.get('http://84.201.149.40/top_stop_users').json()
-  res += '\n\nАбоненты с частой переавторизацией:\n'
+  res += '\n\n<b>Абоненты с частой переавторизацией:</b>\n'
   for user in top_stop_users:
     res += user['login'] + ', '
 
   top_stop_switches = requests.get('http://84.201.149.40/top_stop_switches').json()
-  res += '\n\nМаршрутизаторы с частой переавторизацией:\n'
+  res += '\n\n<b>Маршрутизаторы с частой переавторизацией:</b>\n'
   for user in top_stop_switches:
     res += user['switch'] + ', '
   
@@ -36,10 +36,10 @@ def main():
         # Running as daemon now. PID is fpid
         sys.exit(0)
     sched = Scheduler()
-    sched.add_cron_job(report, minute='*/60')
+    sched.add_cron_job(report, minute='*/5')
     sched.start()
     signal.pause()
 
 
 if __name__ == '__main__':
-    report()
+    main()
