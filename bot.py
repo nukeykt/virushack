@@ -36,7 +36,7 @@ def main():
         # Running as daemon now. PID is fpid
         sys.exit(0)
     sched = Scheduler()
-    sched.add_cron_job(report, minute='*/1')
+    sched.add_cron_job(report, minute='*/60')
     sched.start()
     signal.pause()
 
